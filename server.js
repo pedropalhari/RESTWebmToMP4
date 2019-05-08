@@ -4,6 +4,8 @@ const fs = require("fs");
 var express = require("express");
 var app = express();
 
+let cachedDictionary = {};
+
 function fetchAndSaveVideo(url = "") {
   return new Promise(resolve => {
     fetch(url).then(res => {
@@ -38,19 +40,31 @@ function convertWebmToMP4(filePath) {
 console.log();
 
 app.get("/", async function(req, res) {
-  console.log(`Baixando ${req.query.url}`);
-  let filename = await fetchAndSaveVideo(req.query.url);
+  let url = req.query.url;
 
-  console.log(`Convertendo ${filename}`);
-  await convertWebmToMP4(filename);
+  if (cachedDictionary[url]) {
+    console.log(`Enviando do cache ${url}`);
+    console.log();
+    let filename = cachedDictionary[url];
+    res.sendFile(`${__dirname}/${filename}.mp4`);
+  } else {
+    console.log(`Baixando ${url}`);
+    let filename = await fetchAndSaveVideo(url);
 
-  console.log(`Enviando ${filename}`);
-  res.sendFile(`${__dirname}/${filename}.mp4`, () => {
-    console.log(`Deletando ${filename}`);
-    fs.unlinkSync(`${__dirname}/${filename}.mp4`);
-    fs.unlinkSync(`${__dirname}/${filename}.webm`);
-    console.log("");
-  });
+    console.log(`Convertendo ${filename}`);
+    await convertWebmToMP4(filename);
+
+    console.log(`Enviando ${filename} e cacheando`);
+
+    cachedDictionary[url] = filename;
+
+    res.sendFile(`${__dirname}/${filename}.mp4`, () => {
+      // console.log(`Deletando ${filename}`);
+      // fs.unlinkSync(`${__dirname}/${filename}.mp4`);
+      // fs.unlinkSync(`${__dirname}/${filename}.webm`);
+      // console.log("");
+    });
+  }
 });
 
 app.listen(5050, function() {
